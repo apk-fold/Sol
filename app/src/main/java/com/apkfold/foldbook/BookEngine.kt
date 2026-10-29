@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.net.URI
 import java.util.Locale
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
@@ -47,6 +48,27 @@ internal object BookEngine {
             "docx" -> webFromHtml(context, displayName, plainToHtml(readOfficeXml(source, "word/document.xml"), displayName))
             "odt" -> webFromHtml(context, displayName, plainToHtml(readOfficeXml(source, "content.xml"), displayName))
             else -> ReaderPayload.Unsupported("Le format .$ext n'est pas pris en charge par le lecteur intégré. Essayez « Ouvrir avec » depuis cette page.")
+        }
+    }
+
+    /**
+     * EPUB manifest paths are URL paths, not raw filesystem paths. Decoding percent-escapes
+     * before resolving them is important for books with spaces, accented names, or # in names.
+     */
+    internal fun decodeEpubHrefPath(href: String): String {
+        val path = href.substringBefore('#').substringBefore('?')
+        return runCatching { URI(path.replace(" ", "%20")).path }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: path
+    }
+
+    private fun resolveEpubFile(root: File, base: File, href: String): File? {
+        val candidate = runCatching { File(base, decodeEpubHrefPath(href)).canonicalFile }.getOrNull()
+            ?: return null
+        val rootPath = runCatching { root.canonicalPath }.getOrNull() ?: return null
+        return candidate.takeIf {
+            it.path.startsWith(rootPath + File.separator) && it.isFile
         }
     }
 
@@ -92,8 +114,8 @@ internal object BookEngine {
         val packagePath = elements(parseXml(container.readBytes()), "rootfile").firstOrNull()
             ?.getAttribute("full-path")?.takeIf { it.isNotBlank() }
             ?: error("EPUB invalide : fichier OPF introuvable.")
-        val opf = File(root, packagePath).canonicalFile
-        require(opf.path.startsWith(root.canonicalPath + File.separator) && opf.isFile) { "Chemin OPF invalide." }
+        val opf = resolveEpubFile(root, root, packagePath)
+            ?: error("EPUB invalide : chemin du fichier OPF invalide ou absent.")
         val doc = parseXml(opf.readBytes())
         val manifest = elements(doc, "item").mapNotNull { item ->
             val id = item.getAttribute("id")
@@ -103,9 +125,9 @@ internal object BookEngine {
         val base = opf.parentFile ?: root
         val chapters = elements(doc, "itemref").mapNotNull { item ->
             val href = manifest[item.getAttribute("idref")] ?: return@mapNotNull null
-            val candidate = File(base, href.substringBefore('#').substringBefore('?')).canonicalFile
-            if (candidate.path.startsWith(root.canonicalPath + File.separator) &&
-                candidate.isFile && candidate.extension.lowercase() in setOf("xhtml", "html", "htm", "xml")) candidate else null
+            val candidate = resolveEpubFile(root, base, href)
+            if (candidate != null &&
+                candidate.extension.lowercase(Locale.ROOT) in setOf("xhtml", "html", "htm", "xml", "svg")) candidate else null
         }
         require(chapters.isNotEmpty()) { "EPUB invalide ou sans chapitre lisible." }
         val plain = chapters.map { runCatching { htmlToText(it.readText(Charsets.UTF_8)) }.getOrDefault("") }
