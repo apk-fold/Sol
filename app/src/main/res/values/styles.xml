@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.FoldBook" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#435B46</item>
+        <item name="colorPrimaryVariant">#293B2E</item>
+        <item name="colorSecondary">#B78C62</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#F8F6F0</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:colorAccent">#435B46</item>
+    </style>
+</resources>
