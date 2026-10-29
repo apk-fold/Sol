@@ -21,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     private val library by lazy { BookLibrary(this) }
     private lateinit var list: LinearLayout
     private lateinit var search: EditText
+    private var lastLibraryWidthPx = -1
 
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { importBook(it) }
@@ -62,6 +63,13 @@ class MainActivity : AppCompatActivity() {
         root.addView(search, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
         val scroll = ScrollView(this)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        list.addOnLayoutChangeListener { view, left, _, right, _, _, _, _, _ ->
+            val widthPx = right - left
+            if (widthPx > 0 && widthPx != lastLibraryWidthPx) {
+                lastLibraryWidthPx = widthPx
+                view.post { renderBooks() }
+            }
+        }
         scroll.addView(list)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(TextView(this).apply {
@@ -121,7 +129,7 @@ class MainActivity : AppCompatActivity() {
             })
             return
         }
-        val width = resources.configuration.screenWidthDp
+        val width = if (list.width > 0) (list.width / resources.displayMetrics.density).toInt() else resources.configuration.screenWidthDp
         val columns = if (width >= 1000) 3 else if (width >= 600) 2 else 1
         books.chunked(columns).forEach { group ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
