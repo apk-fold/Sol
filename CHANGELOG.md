@@ -2,6 +2,10 @@
 
 ## 1.2.0 — 2026-10-29
 
+- Lecture immersive : plus aucun bouton plein écran. Le livre occupe tout l'écran, sans barre.
+- Navigation façon Kindle : toucher le tiers gauche ou droit tourne la page, et un balayage horizontal fait de même.
+- Toucher le centre affiche le menu (titre, taille du texte, pagination, sommaire, thème, recherche) ; toucher le texte le referme.
+- Messages « Début du livre » / « Fin du livre » aux extrémités.
 - Lecture : mode plein écran (masque la barre système et le titre ; le retour arrière le quitte).
 - Lecture : thèmes Clair, Sépia et Nuit, mémorisés. En mode nuit, les pages PDF sont inversées.
 - Lecture : sommaire pour les EPUB et documents découpés en parties.

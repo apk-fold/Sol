@@ -3,7 +3,6 @@ package com.apkfold.foldbook
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.ColorFilter
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
@@ -13,7 +12,9 @@ import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.speech.tts.TextToSpeech
 import android.text.InputType
+import android.view.GestureDetector
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.webkit.WebView
@@ -35,7 +36,15 @@ import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executors
+import kotlin.math.abs
 
+/**
+ * Lecteur en plein écran immersif, sans bouton dédié :
+ * - par défaut, aucune barre ni menu : seulement le livre ;
+ * - toucher le tiers gauche / droit de l'écran tourne la page précédente / suivante ;
+ * - glisser horizontalement fait de même ;
+ * - toucher le centre affiche le menu (titre, réglages, sommaire…) ; un nouveau toucher sur le texte le referme.
+ */
 class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     companion object {
         const val EXTRA_URI = "uri"
@@ -47,6 +56,8 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val KEY_ZOOM = "fontZoom"
         private const val MIN_ZOOM = 70
         private const val MAX_ZOOM = 180
+        /** Zone de page tournée sur chaque bord (30 % de la largeur). */
+        private const val EDGE_ZONE = 0.3f
     }
 
     private enum class ReaderTheme(
@@ -70,14 +81,39 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var extension: String
     private lateinit var rootView: LinearLayout
     private lateinit var topBar: LinearLayout
+    private lateinit var controls: LinearLayout
+    private lateinit var bottomPanel: LinearLayout
     private lateinit var titleView: TextView
     private lateinit var contentFrame: FrameLayout
     private lateinit var pageLabel: TextView
     private lateinit var themeButton: Button
-    private lateinit var fullscreenButton: Button
     private lateinit var library: BookLibrary
+    private val gestures by lazy {
+        GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                val width = contentFrame.width.takeIf { it > 0 } ?: return false
+                when {
+                    overlayVisible -> setOverlayVisible(false)
+                    e.x / width < EDGE_ZONE -> goTo(position - 1)
+                    e.x / width > 1f - EDGE_ZONE -> goTo(position + 1)
+                    else -> setOverlayVisible(true)
+                }
+                return true
+            }
+
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                val start = e1 ?: return false
+                val dx = e2.x - start.x
+                val dy = e2.y - start.y
+                // Balayage horizontal franc uniquement, pour ne pas gêner le défilement vertical.
+                if (overlayVisible || abs(dx) < dp(80) || abs(dx) < abs(dy) || abs(velocityX) < dp(200)) return false
+                if (dx < 0) goTo(position + 1) else goTo(position - 1)
+                return true
+            }
+        })
+    }
     private var theme = ReaderTheme.LIGHT
-    private var fullscreen = false
+    private var overlayVisible = false
     private var position = 0
     private var payload: ReaderPayload? = null
     private var renderer: PdfRenderer? = null
@@ -103,17 +139,16 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Lecture : l'écran ne doit pas s'éteindre pendant qu'on lit.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        rootView = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-        }
+        rootView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         // Android 15+ dessine sous les barres système : on réserve leur place (et celle de l'encoche).
         ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             view.setPadding(bars.left + dp(12), bars.top + dp(8), bars.right + dp(12), bars.bottom + dp(8))
             insets
         }
-        topBar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+
+        // Menu du haut (masqué par défaut).
+        topBar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE }
         topBar.addView(button("‹ Retour") { finish() })
         titleView = TextView(this).apply { text = bookName; textSize = 16f; maxLines = 2 }
         topBar.addView(titleView, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
@@ -121,7 +156,8 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         topBar.addView(button("A+") { setFontZoom(fontZoom + 10) })
         rootView.addView(topBar)
 
-        val controls = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        // Pagination (masquée par défaut).
+        controls = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE }
         controls.addView(button("‹ Précédent") { goTo(position - 1) }, LinearLayout.LayoutParams(0, -2, 1f))
         pageLabel = TextView(this).apply {
             gravity = Gravity.CENTER
@@ -132,6 +168,7 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         controls.addView(button("Suivant ›") { goTo(position + 1) }, LinearLayout.LayoutParams(0, -2, 1f))
         rootView.addView(controls)
 
+        // Zone de lecture : occupe tout l'espace restant quand le menu est fermé.
         contentFrame = FrameLayout(this).apply {
             addOnLayoutChangeListener { _, left, _, right, _, _, _, _, _ ->
                 val newWidth = right - left
@@ -144,24 +181,53 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             }
         }
-        rootView.addView(contentFrame, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8); bottomMargin = dp(8) })
+        rootView.addView(contentFrame, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4); bottomMargin = dp(4) })
 
+        // Menu du bas (masqué par défaut).
         themeButton = button("") { cycleTheme() }
-        fullscreenButton = button("Plein écran") { setFullscreen(!fullscreen) }
-        rootView.addView(buttonRow(
+        bottomPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+        bottomPanel.addView(buttonRow(
             button("Sommaire") { showToc() },
             button("Aller à") { jumpToPage() },
-            themeButton,
-            fullscreenButton
+            themeButton
         ))
-        rootView.addView(buttonRow(
+        bottomPanel.addView(buttonRow(
             button("Rechercher") { searchInBook() },
             button("Marque-page") { bookmark() },
             button("Écouter") { speak() }
         ))
+        rootView.addView(bottomPanel)
+
         setContentView(rootView)
         applyTheme()
+        hideSystemBars()
         openBook()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Les barres reviennent parfois après une notification ou un changement d'écran : on les recache.
+        if (hasFocus && !overlayVisible) hideSystemBars()
+    }
+
+    private fun hideSystemBars() {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+    }
+
+    /** Affiche ou masque le menu, avec les barres système (elles suivent le menu). */
+    private fun setOverlayVisible(visible: Boolean) {
+        overlayVisible = visible
+        val state = if (visible) View.VISIBLE else View.GONE
+        topBar.visibility = state
+        controls.visibility = state
+        bottomPanel.visibility = state
+        if (visible) {
+            WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+        } else {
+            hideSystemBars()
+        }
     }
 
     private fun buttonRow(vararg buttons: Button): LinearLayout = LinearLayout(this).apply {
@@ -173,6 +239,9 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val background = Color.parseColor(theme.background)
         rootView.setBackgroundColor(background)
         contentFrame.setBackgroundColor(Color.parseColor(theme.frame))
+        topBar.setBackgroundColor(background)
+        controls.setBackgroundColor(background)
+        bottomPanel.setBackgroundColor(background)
         titleView.setTextColor(Color.parseColor(theme.text))
         pageLabel.setTextColor(Color.parseColor(theme.text))
         window.statusBarColor = background
@@ -211,23 +280,18 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun setFullscreen(enabled: Boolean) {
-        fullscreen = enabled
-        val controller = WindowCompat.getInsetsController(window, window.decorView)
-        if (enabled) {
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            controller.hide(WindowInsetsCompat.Type.systemBars())
-        } else {
-            controller.show(WindowInsetsCompat.Type.systemBars())
-        }
-        topBar.visibility = if (enabled) View.GONE else View.VISIBLE
-        fullscreenButton.text = if (enabled) "Quitter" else "Plein écran"
-    }
-
+    /** Retour : d'abord fermer le menu, puis quitter la lecture. */
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        // Retour quitte d'abord le plein écran, puis la lecture.
-        if (fullscreen) setFullscreen(false) else super.onBackPressed()
+        if (overlayVisible) setOverlayVisible(false) else super.onBackPressed()
+    }
+
+    /** Relie les gestes de lecture à une vue de contenu, sans la empêcher de défiler. */
+    private fun attachGestures(view: View) {
+        view.setOnTouchListener { _, event ->
+            gestures.onTouchEvent(event)
+            false
+        }
     }
 
     private fun openBook() {
@@ -330,6 +394,7 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // Le dossier du chapitre sert de base : les images et feuilles de style relatives restent accessibles.
             loadDataWithBaseURL(Uri.fromFile(base).toString() + "/", themedHtml(file), "text/html", "UTF-8", "")
         }
+        attachGestures(web)
         webView = web
         contentFrame.removeAllViews()
         contentFrame.addView(web, FrameLayout.LayoutParams(-1, -1))
@@ -383,10 +448,9 @@ a { color: ${theme.link}; }
 
     private fun showInScroll(view: View) {
         contentFrame.removeAllViews()
-        contentFrame.addView(
-            ScrollView(this).apply { addView(view, FrameLayout.LayoutParams(-1, -2)) },
-            FrameLayout.LayoutParams(-1, -1)
-        )
+        val scroll = ScrollView(this).apply { addView(view, FrameLayout.LayoutParams(-1, -2)) }
+        attachGestures(scroll)
+        contentFrame.addView(scroll, FrameLayout.LayoutParams(-1, -1))
     }
 
     private fun setFontZoom(value: Int) {
@@ -405,9 +469,10 @@ a { color: ${theme.link}; }
 
     private fun goTo(index: Int) {
         val count = pageCount() ?: return
-        val target = index.coerceIn(0, count - 1)
-        if (target == position) return
-        position = target
+        if (index < 0) { Toast.makeText(this, "Début du livre", Toast.LENGTH_SHORT).show(); return }
+        if (index >= count) { Toast.makeText(this, "Fin du livre", Toast.LENGTH_SHORT).show(); return }
+        if (index == position) return
+        position = index
         when (val p = payload) {
             is ReaderPayload.Pdf -> showPdfPage(p)
             is ReaderPayload.Web -> openWeb(p)
