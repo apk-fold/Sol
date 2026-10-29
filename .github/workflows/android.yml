@@ -1,6 +1,5 @@
 name: Build FoldBook APK
 
-# Builds and tests the Android reader for every source change on main.
 on:
   push:
     branches: [main]
@@ -9,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   android:
@@ -35,3 +34,15 @@ jobs:
           name: foldbook-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Publish APK release
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-apk]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: FoldBook v1.0.0 — APK debug
+          body: |
+            Première préversion publique de FoldBook pour téléphones pliables Android.
+
+            APK debug pour test : il n'est pas signé avec une clé de distribution Google Play. La compilation et les tests unitaires ont réussi dans GitHub Actions. Merci de signaler les problèmes avec le modèle d'appareil et la version Android.
+          prerelease: true
+          files: app/build/outputs/apk/debug/app-debug.apk
