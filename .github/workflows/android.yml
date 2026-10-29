@@ -1,5 +1,6 @@
 name: Build FoldBook APK
 
+# Builds and tests the Android reader for every source change on main.
 on:
   push:
     branches: [main]
