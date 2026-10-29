@@ -26,6 +26,13 @@ class BookEngineTest {
         assertTrue(html.contains("<li>First</li>"))
     }
 
+    @Test fun epubHrefPathsDecodePercentEscapesAndIgnoreFragments() {
+        assertEquals("OEBPS/Text/chapter 1.xhtml",
+            BookEngine.decodeEpubHrefPath("OEBPS/Text/chapter%201.xhtml"))
+        assertEquals("images/couverture #1.jpg",
+            BookEngine.decodeEpubHrefPath("images/couverture%20%231.jpg#cover"))
+    }
+
     @Test fun supportedTypesAreExplicit() {
         assertTrue(supportedInternally("pdf"))
         assertTrue(supportedInternally("epub"))
