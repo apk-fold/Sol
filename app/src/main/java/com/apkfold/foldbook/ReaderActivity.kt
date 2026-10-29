@@ -47,6 +47,7 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var fontZoom = 100
     private var textToSpeech: TextToSpeech? = null
     private var currentText = ""
+    private var lastContentWidth = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,7 +76,21 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         controls.addView(pageLabel, LinearLayout.LayoutParams(0, -2, 1f))
         controls.addView(button("Suivant ›") { navigate(1) }, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(controls)
-        contentFrame = FrameLayout(this).apply { setBackgroundColor(0xFFF1EEE5.toInt()) }
+        contentFrame = FrameLayout(this).apply {
+            setBackgroundColor(0xFFF1EEE5.toInt())
+            addOnLayoutChangeListener { _, left, _, right, _, _, _, _, _ ->
+                val newWidth = right - left
+                if (newWidth > 0 && newWidth != lastContentWidth) {
+                    val wasMeasured = lastContentWidth > 0
+                    lastContentWidth = newWidth
+                    if (wasMeasured && payload is ReaderPayload.Pdf && renderer != null) {
+                        post {
+                            (payload as? ReaderPayload.Pdf)?.let { showPdfPage(it) }
+                        }
+                    }
+                }
+            }
+        }
         root.addView(contentFrame, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8); bottomMargin = dp(8) })
         val bottom = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         bottom.addView(button("Rechercher") { searchInBook() }, LinearLayout.LayoutParams(0, -2, 1f))
@@ -138,7 +153,8 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         worker.execute {
             val bitmap = runCatching {
                 pdf.openPage(index).use { page ->
-                    val scale = minOf(2f, (resources.displayMetrics.widthPixels * 0.95f) / page.width).coerceAtLeast(1f)
+                    val availableWidth = (contentFrame.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels) * 0.95f
+                    val scale = minOf(2f, availableWidth / page.width).coerceAtLeast(0.5f)
                     val bmp = android.graphics.Bitmap.createBitmap((page.width * scale).toInt().coerceAtMost(2400), (page.height * scale).toInt().coerceAtMost(3400), android.graphics.Bitmap.Config.ARGB_8888)
                     bmp.eraseColor(Color.WHITE)
                     page.render(bmp, null, Matrix(), PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
@@ -169,7 +185,7 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             settings.textZoom = fontZoom
             webViewClient = WebViewClient()
             setBackgroundColor(if (night) Color.rgb(30, 32, 30) else Color.rgb(241, 238, 229))
-            loadUrl("file://" + file.absolutePath)
+            loadUrl(android.net.Uri.fromFile(file).toString())
         }
         webView = web
         contentFrame.removeAllViews()
