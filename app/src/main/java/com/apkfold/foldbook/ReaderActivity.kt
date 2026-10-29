@@ -204,7 +204,7 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         fullscreen = enabled
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         if (enabled) {
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BY_SWIPE
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller.hide(WindowInsetsCompat.Type.systemBars())
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
