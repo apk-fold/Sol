@@ -200,7 +200,6 @@ internal object BookEngine {
 
     private fun sanitizeHtml(input: String): String {
         var html = input.replace(Regex("(?is)<(script|iframe|object|embed|form|base)[^>]*>.*?</\\1\\s*>"), "")
-        html = html.replace(Regex("(?i)\\s+on[a-z]+\\s*=\\s*(['\"][^'"]*['\"]|[^\\s>]+)"), "")
         html = html.replace(Regex("""(?i)\\s+on[a-z]+\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)"""), "")
         html = html.replace(Regex("""(?i)(href|src)\\s*=\\s*(['"]?)\\s*javascript:[^'">\\s]*\\2""")) { match -> "${match.groupValues[1]}=\"#\"" }
         return if (html.contains("<html", true)) html else "<html><head><meta charset=\"utf-8\"></head><body>$html</body></html>"
