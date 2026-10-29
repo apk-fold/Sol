@@ -10,3 +10,7 @@
 - Réglage de la taille du texte, thèmes de lecture, marque-page de reprise et TTS Android.
 - Interface responsive pour téléphone, fenêtre large, tablette et appareils pliables.
 - Tests unitaires initiaux et workflow GitHub Actions pour produire l'APK debug.
+
+## Préparation de la préversion
+
+- Le workflow CI exécute les tests et compile l'APK debug avant de créer une préversion GitHub Release lorsque le commit porte le marqueur de publication.
