@@ -2,6 +2,7 @@ package com.apkfold.foldbook
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
@@ -58,6 +59,8 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val MAX_ZOOM = 180
         /** Zone de page tournée sur chaque bord (30 % de la largeur). */
         private const val EDGE_ZONE = 0.3f
+        /** Durée de l'animation de changement de page. */
+        private const val TURN_MS = 280L
     }
 
     private enum class ReaderTheme(
@@ -85,6 +88,12 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var bottomPanel: LinearLayout
     private lateinit var titleView: TextView
     private lateinit var contentFrame: FrameLayout
+    /** Conteneur de la page : il porte aussi l'image de l'ancienne page pendant l'animation. */
+    private lateinit var pageHost: FrameLayout
+    /** Capture de l'ancienne page, glissée hors de l'écran lors d'un changement de page. */
+    private var ghost: ImageView? = null
+    /** Sens du dernier changement de page : +1 page suivante, -1 précédente, 0 aucun. */
+    private var pendingTurn = 0
     private lateinit var pageLabel: TextView
     private lateinit var themeButton: Button
     private lateinit var library: BookLibrary
@@ -181,7 +190,8 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             }
         }
-        rootView.addView(contentFrame, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4); bottomMargin = dp(4) })
+        pageHost = FrameLayout(this).apply { addView(contentFrame, FrameLayout.LayoutParams(-1, -1)) }
+        rootView.addView(pageHost, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4); bottomMargin = dp(4) })
 
         // Menu du bas (masqué par défaut).
         themeButton = button("") { cycleTheme() }
@@ -398,6 +408,7 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         webView = web
         contentFrame.removeAllViews()
         contentFrame.addView(web, FrameLayout.LayoutParams(-1, -1))
+        animateIn(web)
         updatePositionLabel(document.chapters.size)
     }
 
@@ -451,6 +462,7 @@ a { color: ${theme.link}; }
         val scroll = ScrollView(this).apply { addView(view, FrameLayout.LayoutParams(-1, -2)) }
         attachGestures(scroll)
         contentFrame.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        animateIn(scroll)
     }
 
     private fun setFontZoom(value: Int) {
@@ -472,6 +484,7 @@ a { color: ${theme.link}; }
         if (index < 0) { Toast.makeText(this, "Début du livre", Toast.LENGTH_SHORT).show(); return }
         if (index >= count) { Toast.makeText(this, "Fin du livre", Toast.LENGTH_SHORT).show(); return }
         if (index == position) return
+        startPageTurn(if (index > position) 1 else -1)
         position = index
         when (val p = payload) {
             is ReaderPayload.Pdf -> showPdfPage(p)
@@ -480,6 +493,47 @@ a { color: ${theme.link}; }
             else -> Unit
         }
         library.updatePosition(sourceUri, position)
+    }
+
+    /**
+     * Animation de page : une capture de l'ancienne page glisse hors de l'écran,
+     * et la nouvelle page arrive par l'autre côté (voir animateIn).
+     */
+    private fun startPageTurn(direction: Int) {
+        val width = contentFrame.width
+        val height = contentFrame.height
+        pendingTurn = direction
+        if (width <= 0 || height <= 0) return
+        val snapshot = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        contentFrame.draw(Canvas(snapshot))
+        ghost?.let { pageHost.removeView(it) }
+        val old = ImageView(this).apply {
+            setImageBitmap(snapshot)
+            scaleType = ImageView.ScaleType.FIT_XY
+        }
+        ghost = old
+        pageHost.addView(old, FrameLayout.LayoutParams(-1, -1))
+        old.animate()
+            .translationX(-direction * width.toFloat())
+            .setDuration(TURN_MS)
+            .withEndAction {
+                if (ghost === old) {
+                    pageHost.removeView(old)
+                    ghost = null
+                }
+                snapshot.recycle()
+            }
+            .start()
+    }
+
+    /** Fait arriver la nouvelle page depuis le bord opposé, si elle suit un changement de page. */
+    private fun animateIn(view: View) {
+        val direction = pendingTurn
+        pendingTurn = 0
+        val width = contentFrame.width
+        if (direction == 0 || width <= 0) return
+        view.translationX = direction * width.toFloat()
+        view.animate().translationX(0f).setDuration(TURN_MS).start()
     }
 
     private fun jumpToPage() {
