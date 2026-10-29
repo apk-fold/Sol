@@ -33,6 +33,25 @@ class BookEngineTest {
             BookEngine.decodeEpubHrefPath("images/couverture%20%231.jpg#cover"))
     }
 
+    @Test fun htmlEventHandlersAndScriptElementsAreRemoved() {
+        val html = BookEngine.sanitizeHtml(
+            "<p onclick=\"steal()\">Bonjour</p><img src=x onerror=alert(1)><script src=a.js/><a href=\"javascript:evil()\">lien</a>"
+        )
+        assertTrue(!html.contains("onclick", ignoreCase = true))
+        assertTrue(!html.contains("onerror", ignoreCase = true))
+        assertTrue(!html.contains("<script", ignoreCase = true))
+        assertTrue(!html.contains("javascript:", ignoreCase = true))
+        assertTrue(html.contains("Bonjour"))
+    }
+
+    @Test fun rtfHexEscapesDecodeAccentsAsWindows1252() {
+        assertEquals("Café", BookEngine.rtfToText("{\\rtf1\\ansi Caf\\'e9}"))
+    }
+
+    @Test fun rtfUnicodeEscapesAreDecoded() {
+        assertEquals("é", BookEngine.rtfToText("{\\rtf1 \\u233?}"))
+    }
+
     @Test fun supportedTypesAreExplicit() {
         assertTrue(supportedInternally("pdf"))
         assertTrue(supportedInternally("epub"))

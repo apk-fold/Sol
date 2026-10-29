@@ -1,5 +1,14 @@
 # Journal des modifications
 
+## Non publié
+
+- Sécurité : le filtre des attributs `on*=` (onclick, onerror…) et des balises `<script>`/`<iframe>` orphelines fonctionne enfin (l'expression régulière était inopérante).
+- PDF : la page n'est plus recadrée ; le rendu s'adapte à la taille du bitmap et le ratio est conservé lors du plafonnement.
+- Synthèse vocale : le premier appui lit bien le texte, même si le moteur TTS n'est pas encore prêt.
+- RTF : les accents (`\'e9`) et les caractères Unicode (`\uN?`) sont décodés au lieu d'être remplacés par des espaces.
+- PDF : le descripteur de fichier est fermé après le comptage des pages.
+- Tests de régression ajoutés pour le nettoyage HTML et le RTF.
+
 ## 1.1.0 — 2026-10-29
 
 - Correction de la résolution des chemins EPUB encodés (espaces, accents et caractères spéciaux), du chemin OPF et des documents SVG dans le spine.

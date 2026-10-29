@@ -2,7 +2,6 @@ package com.apkfold.foldbook
 
 import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
@@ -46,6 +45,8 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var webView: WebView? = null
     private var fontZoom = 100
     private var textToSpeech: TextToSpeech? = null
+    private var ttsReady = false
+    private var pendingSpeech: String? = null
     private var currentText = ""
     private var lastContentWidth = 0
 
@@ -155,9 +156,14 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 pdf.openPage(index).use { page ->
                     val availableWidth = (contentFrame.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels) * 0.95f
                     val scale = minOf(2f, availableWidth / page.width).coerceAtLeast(0.5f)
-                    val bmp = android.graphics.Bitmap.createBitmap((page.width * scale).toInt().coerceAtMost(2400), (page.height * scale).toInt().coerceAtMost(3400), android.graphics.Bitmap.Config.ARGB_8888)
+                    // Plafonner les deux dimensions en gardant le ratio (un plafond séparé déformait la page).
+                    val fit = minOf(1f, minOf(2400f / (page.width * scale), 3400f / (page.height * scale)))
+                    val width = (page.width * scale * fit).toInt().coerceAtLeast(1)
+                    val height = (page.height * scale * fit).toInt().coerceAtLeast(1)
+                    val bmp = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
                     bmp.eraseColor(Color.WHITE)
-                    page.render(bmp, null, Matrix(), PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    // transform = null : PdfRenderer met la page à l'échelle du bitmap (une Matrix identité la recadrait).
+                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     bmp
                 }
             }.getOrNull()
@@ -250,16 +256,26 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun speak() {
-        if (textToSpeech == null) textToSpeech = TextToSpeech(this, this)
         if (currentText.isBlank()) {
             Toast.makeText(this, "Aucun texte disponible sur cette page", Toast.LENGTH_SHORT).show()
             return
         }
-        textToSpeech?.speak(currentText.take(4000), TextToSpeech.QUEUE_FLUSH, null, "foldbook-reading")
+        val text = currentText.take(4000)
+        if (textToSpeech == null) textToSpeech = TextToSpeech(this, this)
+        // Le moteur TTS est asynchrone : parler avant onInit faisait échouer le premier appui silencieusement.
+        if (ttsReady) textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "foldbook-reading")
+        else pendingSpeech = text
     }
 
     override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) textToSpeech?.language = Locale.getDefault()
+        if (status != TextToSpeech.SUCCESS) {
+            Toast.makeText(this, "Synthèse vocale indisponible sur cet appareil", Toast.LENGTH_SHORT).show()
+            return
+        }
+        textToSpeech?.language = Locale.getDefault()
+        ttsReady = true
+        pendingSpeech?.let { textToSpeech?.speak(it, TextToSpeech.QUEUE_FLUSH, null, "foldbook-reading") }
+        pendingSpeech = null
     }
 
     private fun showUnsupported(reason: String) {

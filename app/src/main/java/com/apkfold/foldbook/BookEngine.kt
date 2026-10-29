@@ -10,6 +10,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.URI
+import java.nio.charset.Charset
 import java.util.Locale
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
@@ -32,8 +33,10 @@ internal object BookEngine {
         val source = copyUriToCache(context, uriString, ext)
         return when (ext) {
             "pdf" -> {
-                val pfd = android.os.ParcelFileDescriptor.open(source, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
-                val count = android.graphics.pdf.PdfRenderer(pfd).use { it.pageCount }
+                // Le descripteur doit être fermé : sinon il fuit à chaque ouverture de PDF.
+                val count = android.os.ParcelFileDescriptor.open(source, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+                    android.graphics.pdf.PdfRenderer(pfd).use { it.pageCount }
+                }
                 require(count > 0) { "Ce PDF ne contient aucune page." }
                 ReaderPayload.Pdf(source, count)
             }
@@ -220,20 +223,36 @@ internal object BookEngine {
         .replace("&lt;", "<").replace("&gt;", ">").replace(Regex("[\\t\\r ]+"), " ")
         .replace(Regex(" *\\n *"), "\n").trim()
 
-    private fun sanitizeHtml(input: String): String {
+    internal fun sanitizeHtml(input: String): String {
+        // Éléments dangereux avec leur contenu, puis balises orphelines (ex. <script src=x/>).
         var html = input.replace(Regex("(?is)<(script|iframe|object|embed|form|base)[^>]*>.*?</\\1\\s*>"), "")
-        html = html.replace(Regex("""(?i)\\s+on[a-z]+\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)"""), "")
-        html = html.replace(Regex("""(?i)(href|src)\\s*=\\s*(['"]?)\\s*javascript:[^'">\\s]*\\2""")) { match -> "${match.groupValues[1]}=\"#\"" }
+        html = html.replace(Regex("(?i)</?(script|iframe|object|embed|form|base)\\b[^>]*>"), "")
+        // Attributs de gestionnaires d'événements (onclick, onerror, …).
+        // Attention : dans une chaîne brute, un seul antislash suffit pour une classe \s.
+        html = html.replace(Regex("(?i)\\s+on[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)"), "")
+        html = html.replace(Regex("(?i)(href|src)\\s*=\\s*(['\"]?)\\s*javascript:[^'\">\\s]*\\2")) { match -> "${match.groupValues[1]}=\"#\"" }
         return if (html.contains("<html", true)) html else "<html><head><meta charset=\"utf-8\"></head><body>$html</body></html>"
     }
 
-    private fun rtfToText(input: String): String = input
-        .replace(Regex("(?s)\\{\\\\\\*.*?}"), "")
-        .replace(Regex("\\\\'[0-9a-fA-F]{2}"), " ")
-        .replace(Regex("\\\\(par|line)\\b ?"), "\n")
-        .replace(Regex("\\\\tab\\b ?"), "\t")
-        .replace(Regex("\\\\[a-zA-Z]+-?\\d* ?"), "")
-        .replace(Regex("[{}]"), "").trim()
+    internal fun rtfToText(input: String): String {
+        val cp1252 = Charset.forName("windows-1252")
+        val withoutGroups = input.replace(Regex("(?s)\\{\\\\\\*.*?}"), "")
+        // \uN? : caractère Unicode signé (valeurs négatives possibles en RTF).
+        val unicode = withoutGroups.replace(Regex("\\\\u(-?\\d+)\\??")) { match ->
+            val code = match.groupValues[1].toInt().let { if (it < 0) it + 65536 else it }
+            code.toChar().toString()
+        }
+        return unicode
+            .replace(Regex("\\\\(par|line)\\b ?"), "\n")
+            .replace(Regex("\\\\tab\\b ?"), "\t")
+            .replace(Regex("\\\\[a-zA-Z]+-?\\d* ?"), "")
+            .replace(Regex("[{}]"), "")
+            // \'xx : octet dans le jeu de caractères Windows-1252 (accents français).
+            .replace(Regex("\\\\'([0-9a-fA-F]{2})")) { match ->
+                String(byteArrayOf(match.groupValues[1].toInt(16).toByte()), cp1252)
+            }
+            .trim()
+    }
 
     private fun readOfficeXml(file: File, entryName: String): String {
         java.util.zip.ZipFile(file).use { zip ->
