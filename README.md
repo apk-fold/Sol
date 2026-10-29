@@ -2,7 +2,7 @@
 
 **Lecteur de livres et de documents Android pensé pour les téléphones pliables.** Bibliothèque locale, lecture hors ligne, rendu PDF, chapitres EPUB, bandes dessinées CBZ, affichage du texte, taille de police réglable et mémorisation de la position.
 
-> Version 1.1.0 en préversion : corrections pour les chemins internes des EPUB et adaptation de la mise en page à la largeur réelle de la fenêtre. La compilation et les tests doivent réussir dans GitHub Actions ; l'APK reste une version debug à tester sur appareil.
+> Version 1.2.0 en préversion : mode plein écran, thèmes de lecture (clair, sépia, nuit), sommaire, saut de page, et corrections de sécurité et de rendu. La compilation et les tests doivent réussir dans GitHub Actions ; l'APK reste une version debug à tester sur appareil.
 
 ## Fonctionnalités
 
@@ -12,7 +12,8 @@
 - EPUB : lecture des chapitres dans l’ordre du spine, prise en compte des chemins URL encodés (espaces, accents, caractères spéciaux), rendu XHTML/HTML/SVG local et chargement des ressources relatives lorsque le livre les contient.
 - Texte et documents : TXT/TEXT, Markdown, HTML/HTM/XHTML, FB2, RTF, DOCX et ODT (extraction du texte, sans reproduction parfaite de la mise en page).
 - Bandes dessinées : CBZ et images JPG/JPEG/PNG/WEBP/GIF.
-- Lecteur texte : recherche sur la page/section, taille du texte, marque-page, lecture vocale Android Text-to-Speech.
+- Lecteur texte : recherche sur la page/section, taille du texte (mémorisée), marque-page, lecture vocale Android Text-to-Speech.
+- Lecture confortable : mode plein écran, thèmes clair / sépia / nuit (les pages PDF s'inversent en mode nuit), sommaire des EPUB et documents, saut direct à une page, progression en pourcentage, écran qui reste allumé.
 - Interface adaptative : mesure la largeur effective de la fenêtre pour choisir une, deux ou trois colonnes, puis recalcule la grille quand on plie/déplie l'appareil ou redimensionne la fenêtre ; les pages PDF sont également recalculées lors d'un changement de largeur.
 - Hors ligne : aucun compte nécessaire, aucune autorisation réseau déclarée, les fichiers d'origine ne sont jamais modifiés.
 - Intention Android VIEW/SEND pour recevoir un document depuis une autre application.

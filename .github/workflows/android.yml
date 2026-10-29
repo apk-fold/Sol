@@ -38,10 +38,10 @@ jobs:
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-apk]')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.1.0
-          name: FoldBook v1.1.0 — APK debug
+          tag_name: v1.2.0
+          name: FoldBook v1.2.0 — APK debug
           body: |
-            FoldBook v1.1.0 : correction de la résolution des chemins internes EPUB (noms encodés, chapitres et SVG) et adaptation aux changements de largeur de fenêtre sur appareils pliables.
+            FoldBook v1.2.0 : mode plein écran, thèmes de lecture clair/sépia/nuit, sommaire des EPUB et documents, saut de page, taille du texte mémorisée, progression en pourcentage, et corrections (sécurité du rendu HTML, PDF recadré, lecture vocale, accents RTF).
 
             APK debug pour test : il n'est pas signé avec une clé de distribution Google Play. La compilation et les tests unitaires ont réussi dans GitHub Actions. Merci de signaler les problèmes avec le modèle d'appareil et la version Android.
           prerelease: true

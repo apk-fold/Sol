@@ -1,6 +1,14 @@
 # Journal des modifications
 
-## Non publié
+## 1.2.0 — 2026-10-29
+
+- Lecture : mode plein écran (masque la barre système et le titre ; le retour arrière le quitte).
+- Lecture : thèmes Clair, Sépia et Nuit, mémorisés. En mode nuit, les pages PDF sont inversées.
+- Lecture : sommaire pour les EPUB et documents découpés en parties.
+- Lecture : « Aller à » la page (ou toucher le compteur), progression en pourcentage.
+- Taille du texte mémorisée entre les sessions ; l'écran reste allumé pendant la lecture.
+- Lecture : mise en page des chapitres (interligne, largeur de colonne confortable).
+- BD : décodage des images hors du thread principal, réduit à la taille de l'écran (moins de risques de lag ou de mémoire saturée).
 
 - Sécurité : le filtre des attributs `on*=` (onclick, onerror…) et des balises `<script>`/`<iframe>` orphelines fonctionne enfin (l'expression régulière était inopérante).
 - PDF : la page n'est plus recadrée ; le rendu s'adapte à la taille du bitmap et le ratio est conservé lors du plafonnement.
