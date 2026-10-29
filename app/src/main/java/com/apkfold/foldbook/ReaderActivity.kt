@@ -151,7 +151,7 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val image = ImageView(this).apply { setImageBitmap(bitmap); scaleType = ImageView.ScaleType.FIT_CENTER; adjustViewBounds = true; contentDescription = "Page PDF" }
                 imageView = image
                 contentFrame.removeAllViews()
-                contentFrame.addView(ScrollView(this).apply { addView(image, ScrollView.LayoutParams(-1, -2)) }, FrameLayout.LayoutParams(-1, -1))
+                contentFrame.addView(ScrollView(this).apply { addView(image, FrameLayout.LayoutParams(-1, -2)) }, FrameLayout.LayoutParams(-1, -1))
                 updatePositionLabel(document.pageCount)
             }
         }
