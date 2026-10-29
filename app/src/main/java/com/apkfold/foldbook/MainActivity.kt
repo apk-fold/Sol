@@ -52,7 +52,7 @@ class MainActivity : AppCompatActivity() {
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
         search = EditText(this).apply {
             hint = "Rechercher un titre ou un format…"
-            singleLine = true
+            maxLines = 1
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = renderBooks()
