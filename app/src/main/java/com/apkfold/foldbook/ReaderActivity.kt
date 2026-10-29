@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Bundle
@@ -171,7 +172,7 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         window.navigationBarColor = background
         themeButton.text = "Thème : ${theme.label}"
         webView?.setBackgroundColor(Color.parseColor(theme.frame))
-        pdfImage?.setColorFilter(pageFilter())
+        pdfImage?.let { applyPageFilter(it) }
     }
 
     private fun cycleTheme() {
@@ -183,9 +184,9 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     /** Les pages PDF sont blanches : en mode nuit on les inverse pour réduire l'éblouissement. */
-    private fun pageFilter(): ColorFilter? = if (theme == ReaderTheme.NIGHT) {
-        ColorMatrixColorFilter(
-            ColorMatrix(
+    private fun applyPageFilter(image: ImageView) {
+        if (theme == ReaderTheme.NIGHT) {
+            val invert = ColorMatrix(
                 floatArrayOf(
                     -1f, 0f, 0f, 0f, 255f,
                     0f, -1f, 0f, 0f, 255f,
@@ -193,9 +194,10 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     0f, 0f, 0f, 1f, 0f
                 )
             )
-        )
-    } else {
-        null
+            image.setColorFilter(ColorMatrixColorFilter(invert))
+        } else {
+            image.clearColorFilter()
+        }
     }
 
     private fun setFullscreen(enabled: Boolean) {
@@ -277,8 +279,10 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     val height = (page.height * scale * fit).toInt().coerceAtLeast(1)
                     val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                     bmp.eraseColor(Color.WHITE)
-                    // transform = null : PdfRenderer met la page à l'échelle du bitmap (une Matrix identité la recadrait).
-                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    // Matrice d'échelle explicite : points de la page -> pixels du bitmap (sans elle, la page est recadrée).
+                    val matrix = Matrix()
+                    matrix.setScale(width.toFloat() / page.width, height.toFloat() / page.height)
+                    page.render(bmp, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     bmp
                 }
             }.getOrNull()
@@ -290,8 +294,8 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     scaleType = ImageView.ScaleType.FIT_CENTER
                     adjustViewBounds = true
                     contentDescription = "Page PDF"
-                    setColorFilter(pageFilter())
                 }
+                applyPageFilter(image)
                 pdfImage = image
                 showInScroll(image)
                 updatePositionLabel(document.pageCount)
@@ -313,7 +317,7 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             webViewClient = WebViewClient()
             setBackgroundColor(Color.parseColor(theme.frame))
             // Le dossier du chapitre sert de base : les images et feuilles de style relatives restent accessibles.
-            loadDataWithBaseURL(Uri.fromFile(base).toString() + "/", themedHtml(file), "text/html", "UTF-8", null)
+            loadDataWithBaseURL(Uri.fromFile(base).toString() + "/", themedHtml(file), "text/html", "UTF-8", "")
         }
         webView = web
         contentFrame.removeAllViews()
