@@ -2,18 +2,18 @@
 
 **Lecteur de livres et de documents Android pensé pour les téléphones pliables.** Bibliothèque locale, lecture hors ligne, rendu PDF, chapitres EPUB, bandes dessinées CBZ, affichage du texte, taille de police réglable et mémorisation de la position.
 
-> État du projet : source initiale en cours de validation. Le workflow GitHub Actions ci-dessous doit compiler l'application et publier un APK debug en artefact. Le binaire doit être testé sur appareil avant toute distribution ; aucun APK déjà compilé n'est présenté comme validé.
+> Version 1.1.0 en préversion : corrections pour les chemins internes des EPUB et adaptation de la mise en page à la largeur réelle de la fenêtre. La compilation et les tests doivent réussir dans GitHub Actions ; l'APK reste une version debug à tester sur appareil.
 
 ## Fonctionnalités
 
 - Import par le sélecteur de fichiers Android (Storage Access Framework) ; pas besoin d'accès global au stockage.
 - Bibliothèque locale avec recherche par nom/extension et reprise de la dernière position.
 - PDF : rendu natif via Android `PdfRenderer`, navigation de page.
-- EPUB : lecture des chapitres ordonnés via le manifeste et le spine, avec rendu HTML/XHTML local.
+- EPUB : lecture des chapitres dans l’ordre du spine, prise en compte des chemins URL encodés (espaces, accents, caractères spéciaux), rendu XHTML/HTML/SVG local et chargement des ressources relatives lorsque le livre les contient.
 - Texte et documents : TXT/TEXT, Markdown, HTML/HTM/XHTML, FB2, RTF, DOCX et ODT (extraction du texte, sans reproduction parfaite de la mise en page).
 - Bandes dessinées : CBZ et images JPG/JPEG/PNG/WEBP/GIF.
 - Lecteur texte : recherche sur la page/section, taille du texte, marque-page, lecture vocale Android Text-to-Speech.
-- Interface responsive : bibliothèque sur une, deux ou trois colonnes selon la largeur disponible ; pas d'orientation imposée, convient à la fenêtre externe et au grand écran déplié.
+- Interface adaptative : mesure la largeur effective de la fenêtre pour choisir une, deux ou trois colonnes, puis recalcule la grille quand on plie/déplie l'appareil ou redimensionne la fenêtre ; les pages PDF sont également recalculées lors d'un changement de largeur.
 - Hors ligne : aucun compte nécessaire, aucune autorisation réseau déclarée, les fichiers d'origine ne sont jamais modifiés.
 - Intention Android VIEW/SEND pour recevoir un document depuis une autre application.
 - GitHub Actions : tests unitaires et construction de l'APK debug à chaque push/PR sur `main`.
@@ -23,7 +23,7 @@
 | Extension | Lecture intégrée | Détails |
 |---|---|---|
 | PDF | Oui | `.pdf`; certains PDF protégés ou endommagés peuvent échouer. |
-| EPUB | Oui | `.epub`; les styles et mises en page inhabituels peuvent varier. |
+| EPUB | Oui | `.epub`; chemins internes encodés corrigés. Les DRM et certaines mises en page/scripts propriétaires restent non pris en charge. |
 | Texte | Oui | `.txt`, `.text`, `.md`, `.markdown`. |
 | HTML | Oui | `.html`, `.htm`, `.xhtml`; JavaScript est désactivé dans WebView. |
 | Livres/XML | Oui | `.fb2` ; extraction du texte principal. |
@@ -59,7 +59,7 @@ Cet APK debug n'est pas une version de production signée. Une distribution exig
 
 ## Appareils pliables
 
-La grille de bibliothèque s'adapte à la largeur de fenêtre. Le lecteur occupe l'espace disponible en mode déplié et fonctionne aussi sur l'écran externe et en multi-fenêtre. La première version n'a pas encore de mode PDF à deux pages côte à côte ni de détection dédiée de la charnière.
+La grille de bibliothèque se base sur la largeur réellement mesurée dans la fenêtre, pas uniquement sur la taille générale de l'écran. Elle est recalculée quand la fenêtre change de largeur, par exemple lors du pliage/dépliage ou en mode multi-fenêtre. Le lecteur PDF redessine la page à la nouvelle largeur. L'application ne détecte pas encore la zone physique de la charnière et n'affiche pas encore deux pages PDF côte à côte.
 
 ## Confidentialité et sécurité
 
@@ -98,7 +98,7 @@ FoldBook/
 
 ## Feuille de route
 
-- Tests instrumentés sur Galaxy Z Fold / Pixel Fold et fenêtre externe.
+- Tests instrumentés sur Galaxy Z Fold / Pixel Fold, en écran externe et avec une sélection de fichiers EPUB variés.
 - Affichage PDF double-page et recherche plein texte.
 - Table des matières EPUB, signets multiples et position de lecture plus précise.
 - Amélioration de l'extraction des métadonnées et de la conversion FB2/RTF/DOCX/ODT.
