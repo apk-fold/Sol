@@ -28,6 +28,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -106,6 +107,12 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(8))
         }
+        // Android 15+ dessine sous les barres système : on réserve leur place (et celle de l'encoche).
+        ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            view.setPadding(bars.left + dp(12), bars.top + dp(8), bars.right + dp(12), bars.bottom + dp(8))
+            insets
+        }
         topBar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         topBar.addView(button("‹ Retour") { finish() })
         titleView = TextView(this).apply { text = bookName; textSize = 16f; maxLines = 2 }
@@ -170,6 +177,10 @@ class ReaderActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         pageLabel.setTextColor(Color.parseColor(theme.text))
         window.statusBarColor = background
         window.navigationBarColor = background
+        // Icônes des barres système : sombres sur fond clair, claires en mode nuit.
+        val barIcons = WindowCompat.getInsetsController(window, rootView)
+        barIcons.isAppearanceLightStatusBars = theme != ReaderTheme.NIGHT
+        barIcons.isAppearanceLightNavigationBars = theme != ReaderTheme.NIGHT
         themeButton.text = "Thème : ${theme.label}"
         webView?.setBackgroundColor(Color.parseColor(theme.frame))
         pdfImage?.let { applyPageFilter(it) }

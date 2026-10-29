@@ -52,6 +52,18 @@ class BookEngineTest {
         assertEquals("é", BookEngine.rtfToText("{\\rtf1 \\u233?}"))
     }
 
+    @Test fun xmlEntityDeclarationsAreRejected() {
+        val attack = "<?xml version=\"1.0\"?><!DOCTYPE a [<!ENTITY x \"boom\">]><a>&x;</a>".toByteArray()
+        assertTrue(BookEngine.containsEntityDeclaration(attack))
+        val utf16 = "<!DOCTYPE a [<!ENTITY x \"y\">]><a/>".toByteArray(Charsets.UTF_16LE)
+        assertTrue(BookEngine.containsEntityDeclaration(utf16))
+    }
+
+    @Test fun ordinaryXmlIsNotRejected() {
+        val opf = "<?xml version=\"1.0\"?><package xmlns=\"http://www.idpf.org/2007/opf\"><metadata/></package>".toByteArray()
+        assertTrue(!BookEngine.containsEntityDeclaration(opf))
+    }
+
     @Test fun supportedTypesAreExplicit() {
         assertTrue(supportedInternally("pdf"))
         assertTrue(supportedInternally("epub"))

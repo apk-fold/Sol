@@ -269,12 +269,25 @@ internal object BookEngine {
             .ifBlank { doc.documentElement.textContent.orEmpty().trim() }
     }
 
+    /**
+     * Les entités personnalisées permettent les attaques XXE / « billion laughs ». On les refuse nous-mêmes,
+     * car le parseur d'Android ne connaît pas les options de sécurité de Xerces (voir parseXml).
+     * Les octets nuls sont ignorés pour couvrir aussi les fichiers en UTF-16.
+     */
+    internal fun containsEntityDeclaration(bytes: ByteArray): Boolean =
+        String(bytes.filter { it != 0.toByte() }.toByteArray(), Charsets.ISO_8859_1).contains("<!ENTITY")
+
     private fun parseXml(bytes: ByteArray): Document {
+        require(!containsEntityDeclaration(bytes)) { "Document XML refusé : déclaration d'entité non autorisée." }
         val factory = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
-            setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-            setFeature("http://xml.org/sax/features/external-general-entities", false)
-            setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+            // Le parseur de la JVM accepte ces options, celui d'Android lève ParserConfigurationException :
+            // chacune est donc facultative (sinon aucun EPUB/FB2/DOCX/ODT ne s'ouvre sur téléphone).
+            listOf(
+                "http://apache.org/xml/features/disallow-doctype-decl" to true,
+                "http://xml.org/sax/features/external-general-entities" to false,
+                "http://xml.org/sax/features/external-parameter-entities" to false
+            ).forEach { (name, value) -> runCatching { setFeature(name, value) } }
             runCatching { setAttribute("http://javax.xml.XMLConstants/property/accessExternalDTD", "") }
             runCatching { setAttribute("http://javax.xml.XMLConstants/property/accessExternalSchema", "") }
         }

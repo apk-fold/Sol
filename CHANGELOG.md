@@ -10,6 +10,8 @@
 - Lecture : mise en page des chapitres (interligne, largeur de colonne confortable).
 - BD : décodage des images hors du thread principal, réduit à la taille de l'écran (moins de risques de lag ou de mémoire saturée).
 
+- EPUB, FB2, DOCX et ODT : ils s'ouvrent enfin sur téléphone. Le parseur XML d'Android refusait l'option de sécurité `disallow-doctype-decl` (« Ce format ne peut pas être ouvert ici »). Les options sont désormais facultatives et les déclarations `<!ENTITY` sont refusées par l'application elle-même.
+- Affichage : les boutons ne passent plus sous la barre d'état ni la barre de navigation (Android 15+, bord à bord) ; icônes des barres lisibles en mode nuit.
 - Sécurité : le filtre des attributs `on*=` (onclick, onerror…) et des balises `<script>`/`<iframe>` orphelines fonctionne enfin (l'expression régulière était inopérante).
 - PDF : la page n'est plus recadrée ; le rendu s'adapte à la taille du bitmap et le ratio est conservé lors du plafonnement.
 - Synthèse vocale : le premier appui lit bien le texte, même si le moteur TTS n'est pas encore prêt.
